@@ -1,0 +1,26 @@
+package com.jeeframework.jeetask.startup;
+
+import com.jeeframework.jeetask.task.Task;
+import org.junit.Test;
+
+/**
+ * 描述
+ *
+ * @author lance
+ * @version 1.0 2017-08-17 18:50
+ */
+public class JeeTaskClientTest {
+    @Test
+    public void submitTask() throws Exception {
+
+        Task task = new Task();
+        task.setName("taskName8");
+        task.setParam("param8");
+        task.setJobClass("com.jeeframework.jeetask.startup.job.JobImpl");
+
+        JeeTaskClient jeeTaskClient = new JeeTaskClient(null);
+        jeeTaskClient.submitTask(task);
+        System.out.println(task.getId());
+    }
+
+}
