@@ -23,6 +23,7 @@ import com.jeeframework.jeetask.event.type.JobExecutionEvent;
 import com.jeeframework.jeetask.event.type.JobStatusTraceEvent;
 import com.jeeframework.jeetask.task.Task;
 import com.jeeframework.jeetask.util.net.IPUtils;
+import com.jeeframework.jeetask.zookeeper.exception.ZkOperationException;
 import com.jeeframework.jeetask.zookeeper.exception.ZkOperationExceptionHandler;
 import com.jeeframework.jeetask.zookeeper.server.ServerNode;
 import com.jeeframework.jeetask.zookeeper.storage.NodePath;
@@ -111,7 +112,16 @@ public final class TaskService {
             int taskCount = counter.get().postValue();
             log.debug("taskId =  " + taskId + " 任务停止后， taskCount =  " + taskCount + "  条任务。");
         } catch (Exception ex) {
-            ZkOperationExceptionHandler.handleException(ex);
+            try {
+                ZkOperationExceptionHandler.handleException(ex);
+            } catch (ZkOperationException e) {
+                if (null != e.getCause() && e.getCause().toString().contains("NoNodeException")) {
+                    throw new ZkOperationException("节点不存在，可能已经被分配执行", e);
+                } else {
+                    throw e;
+                }
+
+            }
         }
     }
 

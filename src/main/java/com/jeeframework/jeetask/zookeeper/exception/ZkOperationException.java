@@ -23,4 +23,8 @@ public class ZkOperationException extends RuntimeException {
         super(cause);
     }
 
+    public ZkOperationException(final String msg, final Exception cause) {
+        super(msg, cause);
+    }
+
 }
