@@ -30,7 +30,7 @@ public abstract class AbstractListenerManager {
 
     private final NodeStorage nodeStorage;
 
-    protected AbstractListenerManager(final CoordinatorRegistryCenter regCenter, final String jobName) {
+    protected AbstractListenerManager(final CoordinatorRegistryCenter regCenter ) {
         nodeStorage = new NodeStorage(regCenter);
     }
 

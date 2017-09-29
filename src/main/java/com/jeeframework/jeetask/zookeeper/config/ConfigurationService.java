@@ -52,12 +52,12 @@ public final class ConfigurationService {
     public JobConfiguration load(final boolean fromCache) {
         String result;
         if (fromCache) {
-            result = nodeStorage.getJobNodeData(ConfigurationNode.ROOT);
+            result = nodeStorage.getNodeData(ConfigurationNode.ROOT);
             if (null == result) {
-                result = nodeStorage.getJobNodeDataDirectly(ConfigurationNode.ROOT);
+                result = nodeStorage.getNodeDataDirectly(ConfigurationNode.ROOT);
             }
         } else {
-            result = nodeStorage.getJobNodeDataDirectly(ConfigurationNode.ROOT);
+            result = nodeStorage.getNodeDataDirectly(ConfigurationNode.ROOT);
         }
         return LiteJobConfigurationGsonFactory.fromJson(result);
     }
@@ -69,8 +69,8 @@ public final class ConfigurationService {
      */
     public void persist(final JobConfiguration liteJobConfig) {
         checkConflictJob(liteJobConfig);
-        if (!nodeStorage.isJobNodeExisted(ConfigurationNode.ROOT) || liteJobConfig.isOverwrite()) {
-            nodeStorage.replaceJobNode(ConfigurationNode.ROOT, LiteJobConfigurationGsonFactory.toJson(liteJobConfig));
+        if (!nodeStorage.isNodeExisted(ConfigurationNode.ROOT) || liteJobConfig.isOverwrite()) {
+            nodeStorage.replaceNode(ConfigurationNode.ROOT, LiteJobConfigurationGsonFactory.toJson(liteJobConfig));
         }
     }
 
@@ -83,13 +83,13 @@ public final class ConfigurationService {
     }
 
     private Optional<JobConfiguration> find() {
-        if (!nodeStorage.isJobNodeExisted(ConfigurationNode.ROOT)) {
+        if (!nodeStorage.isNodeExisted(ConfigurationNode.ROOT)) {
             return Optional.absent();
         }
-        JobConfiguration result = LiteJobConfigurationGsonFactory.fromJson(nodeStorage.getJobNodeDataDirectly(ConfigurationNode.ROOT));
+        JobConfiguration result = LiteJobConfigurationGsonFactory.fromJson(nodeStorage.getNodeDataDirectly(ConfigurationNode.ROOT));
         if (null == result) {
             // TODO 应该删除整个job node,并非仅仅删除config node
-            nodeStorage.removeJobNodeIfExisted(ConfigurationNode.ROOT);
+            nodeStorage.removeNodeIfExisted(ConfigurationNode.ROOT);
         }
         return Optional.fromNullable(result);
     }

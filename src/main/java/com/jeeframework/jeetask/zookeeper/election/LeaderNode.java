@@ -17,33 +17,33 @@
 
 package com.jeeframework.jeetask.zookeeper.election;
 
-import com.dangdang.ddframe.job.lite.internal.storage.JobNodePath;
+import com.jeeframework.jeetask.zookeeper.storage.NodePath;
 
 /**
  * 主节点路径.
- * 
+ *
  * @author zhangliang
  */
 public final class LeaderNode {
-    
+
     /**
      * 主节点根路径.
      */
     public static final String ROOT = "leader";
-    
+
     static final String ELECTION_ROOT = ROOT + "/election";
-    
+
     static final String INSTANCE = ELECTION_ROOT + "/instance";
-    
+
     static final String LATCH = ELECTION_ROOT + "/latch";
-    
-    private final JobNodePath jobNodePath;
-    
-    LeaderNode(final String jobName) {
-        jobNodePath = new JobNodePath(jobName);
+
+    private final NodePath nodePath;
+
+    public LeaderNode() {
+        nodePath = new NodePath();
     }
-    
-    boolean isLeaderInstancePath(final String path) {
-        return jobNodePath.getFullPath(INSTANCE).equals(path);
+
+    public boolean isLeaderInstancePath(final String path) {
+        return nodePath.getFullPath(INSTANCE).equals(path);
     }
 }

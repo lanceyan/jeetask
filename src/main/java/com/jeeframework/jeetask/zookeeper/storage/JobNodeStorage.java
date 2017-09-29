@@ -19,7 +19,7 @@ package com.jeeframework.jeetask.zookeeper.storage;
 
 import com.dangdang.ddframe.job.exception.JobSystemException;
 import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
-import com.dangdang.ddframe.job.reg.exception.RegExceptionHandler;
+import com.jeeframework.jeetask.zookeeper.exception.ZkOperationExceptionHandler;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.transaction.CuratorTransactionFinal;
 import org.apache.curator.framework.recipes.cache.TreeCache;
@@ -172,7 +172,7 @@ public final class JobNodeStorage {
             //CHECKSTYLE:OFF
         } catch (final Exception ex) {
             //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
 

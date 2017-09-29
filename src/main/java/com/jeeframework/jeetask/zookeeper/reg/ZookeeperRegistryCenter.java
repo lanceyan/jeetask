@@ -18,10 +18,10 @@
 package com.jeeframework.jeetask.zookeeper.reg;
 
 import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
-import com.dangdang.ddframe.job.reg.exception.RegExceptionHandler;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.jeeframework.jeetask.zookeeper.exception.ZkOperationExceptionHandler;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -100,7 +100,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             //CHECKSTYLE:OFF
         } catch (final Exception ex) {
             //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
     
@@ -155,7 +155,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
             return null;
         }
     }
@@ -175,7 +175,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
          //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
             return Collections.emptyList();
         }
     }
@@ -190,7 +190,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             //CHECKSTYLE:OFF
         } catch (final Exception ex) {
             //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
         }
         return 0;
     }
@@ -207,7 +207,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
             return false;
         }
     }
@@ -223,7 +223,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
     
@@ -234,7 +234,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
     
@@ -248,7 +248,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
     
@@ -259,7 +259,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
         return null;
     }
@@ -271,7 +271,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
     
@@ -282,7 +282,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
     
@@ -295,7 +295,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
         }
         Preconditions.checkState(0L != result, "Cannot get registry center time.");
         return result;
@@ -314,7 +314,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
         caches.put(cachePath + "/", cache);
     }

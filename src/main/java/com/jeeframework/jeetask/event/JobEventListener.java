@@ -20,7 +20,6 @@ package com.jeeframework.jeetask.event;
 
 import com.google.common.eventbus.AllowConcurrentEvents;
 import com.google.common.eventbus.Subscribe;
-import com.jeeframework.jeetask.event.rdb.JobEventStorage;
 import com.jeeframework.jeetask.event.type.JobExecutionEvent;
 
 /**
@@ -28,7 +27,7 @@ import com.jeeframework.jeetask.event.type.JobExecutionEvent;
  *
  * @author zhangliang
  */
-public interface JobEventListener extends JobEventIdentity {
+public interface JobEventListener   {
 
     /**
      * 作业执行事件监听执行.
@@ -38,8 +37,6 @@ public interface JobEventListener extends JobEventIdentity {
     @Subscribe
     @AllowConcurrentEvents
     void trigger(JobExecutionEvent jobExecutionEvent);
-
-    JobEventStorage getRepository();
 
 
     /**

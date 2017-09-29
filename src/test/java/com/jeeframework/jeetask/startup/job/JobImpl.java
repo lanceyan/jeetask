@@ -9,6 +9,7 @@
 package com.jeeframework.jeetask.startup.job;
 
 import com.jeeframework.jeetask.task.Job;
+import com.jeeframework.jeetask.task.context.JobContext;
 
 /**
  * 作业实现类
@@ -18,7 +19,7 @@ import com.jeeframework.jeetask.task.Job;
  */
 public class JobImpl implements Job {
     @Override
-    public void doJob() {
+    public void doJob(JobContext jobContext) {
         int i = 0;
         while (true) {
             System.out.println("dojob  =   " + i);

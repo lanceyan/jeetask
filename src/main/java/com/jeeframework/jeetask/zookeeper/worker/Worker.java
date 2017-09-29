@@ -9,12 +9,12 @@
 package com.jeeframework.jeetask.zookeeper.worker;
 
 import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
-import com.google.gson.Gson;
 import com.jeeframework.jeetask.event.JobEventBus;
 import com.jeeframework.jeetask.event.type.JobExecutionEvent;
 import com.jeeframework.jeetask.event.type.JobStatusTraceEvent;
 import com.jeeframework.jeetask.task.Job;
 import com.jeeframework.jeetask.task.Task;
+import com.jeeframework.jeetask.task.context.JobContext;
 import com.jeeframework.jeetask.util.net.IPUtils;
 import com.jeeframework.jeetask.zookeeper.server.ServerNode;
 import com.jeeframework.jeetask.zookeeper.server.ServerService;
@@ -28,6 +28,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.transaction.CuratorTransactionFinal;
 import org.apache.curator.framework.recipes.atomic.DistributedAtomicInteger;
 import org.apache.curator.retry.RetryNTimes;
+import org.springframework.beans.factory.BeanFactory;
 
 import java.util.Date;
 
@@ -46,16 +47,18 @@ public class Worker implements Runnable {
     private final JobEventBus jobEventBus;
     private final ServerService serverService;
     private final CoordinatorRegistryCenter regCenter;
+    private final BeanFactory context;
 
     public Worker(final CoordinatorRegistryCenter regCenter, final JobEventBus
-            jobEventBus, final Task task) {
+            jobEventBus, final Task task, final BeanFactory context, final ServerService serverService) {
         this.regCenter = regCenter;
         nodeStorage = new NodeStorage(regCenter);
         this.jobEventBus = jobEventBus;
         serverNode = new ServerNode();
         nodePath = new NodePath();
-        this.serverService = new ServerService(regCenter, jobEventBus);
+        this.serverService = serverService;
         this.task = task;
+        this.context = context;
     }
 
     @Override
@@ -72,7 +75,7 @@ public class Worker implements Runnable {
     public void doJob() {
         String jobClass = task.getJobClass();
         long taskId = task.getId();
-        String ip = IPUtils.getOutAndLocalIPV4();
+        String ip = IPUtils.getUniqueServerId();
         try {
             JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
                     .TASK_RUNNING, ip);
@@ -81,7 +84,11 @@ public class Worker implements Runnable {
 
             Class jobClazz = ClassUtils.forName(jobClass);
             Job job = (Job) jobClazz.newInstance();
-            job.doJob();
+
+            JobContext jobContext = new JobContext();
+            jobContext.setContext(context);
+            jobContext.setTask(task);
+            job.doJob(jobContext);
             nodeStorage.executeInTransaction(new FinishTaskTransactionExecutionCallback(task));
         } catch (Throwable e) {
             nodeStorage.executeInTransaction(new TaskErrorTransactionExecutionCallback(task, e));
@@ -94,22 +101,30 @@ public class Worker implements Runnable {
 
         final Task task;
 
+        String outAndLocalIp = IPUtils.getUniqueServerId();
 
         @Override
         public void execute(final CuratorTransactionFinal curatorTransactionFinal) throws Exception {
             /**   delete  /servers/169.254.79.228_10.0.75.1/tasks/running/111    里删除一个任务
              *    数据库更新任务为完成
              */
+
             long taskId = task.getId();
-            Gson gson = new Gson();
-            String taskJSON = gson.toJson(task);
-
-            String outAndLocalIp = IPUtils.getOutAndLocalIPV4();
-
-            //waiting任务队列删除
+            //running任务队列删除
             curatorTransactionFinal.delete().forPath(nodePath.getFullPath(ServerNode.getRunningTaskIdNode
                     (outAndLocalIp, taskId
                     ))).and();
+
+
+        }
+
+        @Override
+        public void afterCommit() throws Exception {
+            long taskId = task.getId();
+            JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
+                    .TASK_FINISHED, outAndLocalIp);
+            jobExecutionEvent = jobExecutionEvent.executionSuccess();
+            jobEventBus.trigger(jobExecutionEvent);
 
             //服务器上任务计数  -1
             CuratorFramework client = nodeStorage.getClient();
@@ -120,19 +135,7 @@ public class Worker implements Runnable {
             counter.decrement();
 
             int taskCount = counter.get().postValue();
-            log.debug("taskCount =  " + taskCount + "  条任务。");
-            log.debug("taskId =  " + taskId + "  执行完成了！");
-        }
-
-        @Override
-        public void afterCommit() throws Exception {
-            long taskId = task.getId();
-            String ip = IPUtils.getOutAndLocalIPV4();
-
-            JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
-                    .TASK_FINISHED, ip);
-            jobExecutionEvent = jobExecutionEvent.executionSuccess();
-            jobEventBus.trigger(jobExecutionEvent);
+            log.debug("taskId =  " + taskId + "  执行完成了！  taskCount =  " + taskCount + "  条任务。");
         }
     }
 
@@ -143,23 +146,32 @@ public class Worker implements Runnable {
         final Task task;
         final Throwable throwable;
 
+
+
+        String outAndLocalIp = IPUtils.getUniqueServerId();
+
         @Override
         public void execute(final CuratorTransactionFinal curatorTransactionFinal) throws Exception {
-
+            long taskId = task.getId();
             /**   delete  /servers/169.254.79.228_10.0.75.1/tasks/running/111    里删除一个任务
              *    数据库更新错误信息为出错
              */
-
-            long taskId = task.getId();
-            Gson gson = new Gson();
-            String taskJSON = gson.toJson(task);
-
-            String outAndLocalIp = IPUtils.getOutAndLocalIPV4();
-
-            //waiting任务队列删除
+            //running任务队列删除
             curatorTransactionFinal.delete().forPath(nodePath.getFullPath(ServerNode.getRunningTaskIdNode
                     (outAndLocalIp, taskId
                     ))).and();
+        }
+
+        @Override
+        public void afterCommit() throws Exception {
+            long taskId = task.getId();
+            String ip = IPUtils.getUniqueServerId();
+
+            JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
+                    .TASK_ERROR, ip);
+            jobExecutionEvent = jobExecutionEvent.executionFailure(throwable);
+
+            jobEventBus.trigger(jobExecutionEvent);
 
             //服务器上任务计数  -1
             CuratorFramework client = nodeStorage.getClient();
@@ -170,21 +182,7 @@ public class Worker implements Runnable {
             counter.decrement();
 
             int taskCount = counter.get().postValue();
-            log.debug("taskCount =  " + taskCount + "  条任务。");
-
-            log.debug("taskId =  " + taskId + "  执行出错啦！");
-        }
-
-        @Override
-        public void afterCommit() throws Exception {
-            long taskId = task.getId();
-            String ip = IPUtils.getOutAndLocalIPV4();
-
-            JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
-                    .TASK_ERROR, ip);
-            jobExecutionEvent = jobExecutionEvent.executionFailure(throwable);
-
-            jobEventBus.trigger(jobExecutionEvent);
+            log.debug("taskId =  " + taskId + "  执行出错啦！ taskCount =  " + taskCount + "  条任务。");
         }
     }
 }

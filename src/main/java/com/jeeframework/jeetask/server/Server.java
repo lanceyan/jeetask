@@ -25,5 +25,6 @@ public class Server {
     private String localIp;//内网IP
     private int taskCount;//任务数
     private int cpuCount;//cpu数量
+    private int maxAllowedWorkerCount;//最大允许的线程数量
 
 }

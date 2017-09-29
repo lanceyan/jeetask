@@ -19,7 +19,7 @@ package com.jeeframework.jeetask.zookeeper.storage;
 
 import com.dangdang.ddframe.job.exception.JobSystemException;
 import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
-import com.dangdang.ddframe.job.reg.exception.RegExceptionHandler;
+import com.jeeframework.jeetask.zookeeper.exception.ZkOperationExceptionHandler;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.transaction.CuratorTransactionFinal;
 import org.apache.curator.framework.recipes.cache.TreeCache;
@@ -55,7 +55,7 @@ public final class NodeStorage {
      * @param node 作业节点名称
      * @return 作业节点是否存在
      */
-    public boolean isJobNodeExisted(final String node) {
+    public boolean isNodeExisted(final String node) {
         return regCenter.isExisted(nodePath.getFullPath(node));
     }
 
@@ -65,7 +65,7 @@ public final class NodeStorage {
      * @param node 作业节点名称
      * @return 作业节点数据值
      */
-    public String getJobNodeData(final String node) {
+    public String getNodeData(final String node) {
         return regCenter.get(nodePath.getFullPath(node));
     }
 
@@ -75,7 +75,7 @@ public final class NodeStorage {
      * @param node 作业节点名称
      * @return 作业节点数据值
      */
-    public String getJobNodeDataDirectly(final String node) {
+    public String getNodeDataDirectly(final String node) {
         return regCenter.getDirectly(nodePath.getFullPath(node));
     }
 
@@ -85,7 +85,7 @@ public final class NodeStorage {
      * @param node 作业节点名称
      * @return 作业节点子节点名称列表
      */
-    public List<String> getJobNodeChildrenKeys(final String node) {
+    public List<String> getNodeChildrenKeys(final String node) {
         return regCenter.getChildrenKeys(nodePath.getFullPath(node));
     }
 
@@ -96,21 +96,30 @@ public final class NodeStorage {
      *
      * @param node 作业节点名称
      */
-    public void createJobNodeIfNeeded(final String node) {
-        if (!isJobNodeExisted(node)) {
+    public void createNodeIfNeeded(final String node) {
+        if (!isNodeExisted(node)) {
             regCenter.persist(nodePath.getFullPath(node), "");
         }
     }
 
     /**
-     * 删除作业节点.
+     * 检查节点是否存在，删除作业节点.
      *
      * @param node 作业节点名称
      */
-    public void removeJobNodeIfExisted(final String node) {
-        if (isJobNodeExisted(node)) {
+    public void removeNodeIfExisted(final String node) {
+        if (isNodeExisted(node)) {
             regCenter.remove(nodePath.getFullPath(node));
         }
+    }
+
+    /**
+     * 删除作业节点
+     *
+     * @param node
+     */
+    public void removeNode(final String node) {
+        regCenter.remove(nodePath.getFullPath(node));
     }
 
     /**
@@ -119,7 +128,7 @@ public final class NodeStorage {
      * @param node  作业节点名称
      * @param value 作业节点数据值
      */
-    public void fillJobNode(final String node, final Object value) {
+    public void fillNode(final String node, final Object value) {
         regCenter.persist(nodePath.getFullPath(node), value.toString());
     }
 
@@ -129,7 +138,7 @@ public final class NodeStorage {
      * @param node  作业节点名称
      * @param value 作业节点数据值
      */
-    public void fillEphemeralJobNode(final String node, final Object value) {
+    public void fillEphemeralNode(final String node, final Object value) {
         regCenter.persistEphemeral(nodePath.getFullPath(node), value.toString());
     }
 
@@ -139,7 +148,7 @@ public final class NodeStorage {
      * @param node  作业节点名称
      * @param value 作业节点数据值
      */
-    public void updateJobNode(final String node, final Object value) {
+    public void updateNode(final String node, final Object value) {
         regCenter.update(nodePath.getFullPath(node), value.toString());
     }
 
@@ -149,7 +158,7 @@ public final class NodeStorage {
      * @param node  作业节点名称
      * @param value 待替换的数据
      */
-    public void replaceJobNode(final String node, final Object value) {
+    public void replaceNode(final String node, final Object value) {
         regCenter.persist(nodePath.getFullPath(node), value.toString());
     }
 
@@ -167,7 +176,7 @@ public final class NodeStorage {
             //CHECKSTYLE:OFF
         } catch (final Exception ex) {
             //CHECKSTYLE:ON
-            RegExceptionHandler.handleException(ex);
+            ZkOperationExceptionHandler.handleException(ex);
         }
     }
 

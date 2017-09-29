@@ -9,13 +9,14 @@
 package com.jeeframework.jeetask.startup;
 
 
-import com.dangdang.ddframe.job.lite.internal.election.ElectionListenerManager;
 import com.jeeframework.jeetask.zookeeper.config.ConfigurationService;
 import com.jeeframework.jeetask.zookeeper.election.LeaderService;
 import com.jeeframework.jeetask.zookeeper.instance.InstanceService;
 import com.jeeframework.jeetask.zookeeper.server.ServerService;
 import com.jeeframework.jeetask.zookeeper.sharding.ShardingService;
 import com.jeeframework.jeetask.zookeeper.task.TaskService;
+import com.jeeframework.util.validate.Validate;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.sql.DataSource;
@@ -38,48 +39,45 @@ public class JeeTaskServer extends JeeTask {
     private ConfigurationService configService = null;
     private ShardingService shardingService = null;
 
+    private String roles = "leader,worker"; //默认是leader、worker
 
-    private ElectionListenerManager electionListenerManager;
+
+    @Setter
+    private String maxAllowedWorkerCount; //每个机器worker的数量
 
 
     public JeeTaskServer(DataSource taskDataSource) throws IOException {
         super(taskDataSource);
     }
 
-    public JeeTaskServer() throws IOException {
-        super(null);
+    public JeeTaskServer() {
     }
 
 
     public void start() throws Exception {
-        leaderService = new LeaderService(regCenter, jobEventBus);
-        serverService = new ServerService(regCenter, jobEventBus);
-        instanceService = new InstanceService(regCenter, jobEventBus);
+
+        //配置文件环境变量
+        String rolesTmp = null;
+        try {
+            rolesTmp = System.getProperty("roles");
+        } catch (Exception e) {
+        }
+        if (Validate.isEmpty(rolesTmp)) {
+            rolesTmp = roles;
+            System.setProperty("roles", rolesTmp);
+            System.out.println("===============没有配置  -Droles   环境变量，使用默认配置  " + rolesTmp + "  ==================");
+        } else {
+            System.out.println("===============找到 -Droles   系统环境变量，值为：  " + rolesTmp + "  ==================");
+        }
+
+        int workerNumInt = getMaxAllowedWorkerCount();
+
+        serverService = new ServerService(regCenter, jobEventBus, context, workerNumInt);
+
+
         configService = new ConfigurationService(regCenter);
         taskService = new TaskService(regCenter, jobEventBus);
 
-//        shardingService = new ShardingService(regCenter);
-
-//        JobNodeStorage jobNodeStorage = new JobNodeStorage(regCenter, jobName);
-//        RegistryCenterConnectionStateListener regCenterConnectionStateListener = new
-//                RegistryCenterConnectionStateListener(regCenter, jobName);
-//
-//        electionListenerManager = new ElectionListenerManager(regCenter, jobName);
-
-//        jobEventConfig.createJobEventListener();
-
-//        JobCoreConfiguration coreConfig = JobCoreConfiguration.newBuilder(jobName, "0/5 * * * * ?", 3)
-//                .shardingItemParameters("0=Beijing,1=Shanghai,2=Guangzhou").build();
-
-//        JobCoreConfiguration coreConfig = JobCoreConfiguration.newBuilder(jobName).build();
-
-//        BizJobDefinition bizJobConfig = new BizJobDefinition(jobName, JavaSimpleJob.class
-//                .getCanonicalName());
-//
-//        JobConfiguration jobConfig = JobConfiguration.newBuilder(bizJobConfig).build();
-
-//        JobScheduleController JobScheduleController = new JobScheduleController(null, null, null);
-//        JobRegistry.getInstance().registerJob(jobName, JobScheduleController, regCenter);
 
         /**
          * 1、注册服务器IP地址到zk
@@ -124,6 +122,69 @@ public class JeeTaskServer extends JeeTask {
          *
          */
 
+        serverService.register(rolesTmp);
+
+        if (rolesTmp.contains("leader")) {
+            System.out.println("===============配置了leader角色，启动选举监听线程==================");
+            leaderService = new LeaderService(regCenter, jobEventBus, context, serverService);
+            leaderService.electLeader();
+        }
+
+
+    }
+
+    /**
+     * 获取执行工作线程数
+     *
+     * @return
+     */
+    protected int getMaxAllowedWorkerCount() {
+        String workerNumTmp = null;
+        try {
+            workerNumTmp = System.getProperty("task.worker.maxAllowed");
+        } catch (Exception e) {
+        }
+        if (Validate.isEmpty(workerNumTmp)) {
+            workerNumTmp = properties.getProperty("task.worker.maxAllowed");
+        }
+        //properties里没有就判断通过spring方式注入有没有
+        if (Validate.isEmpty(workerNumTmp)) {
+            workerNumTmp = maxAllowedWorkerCount;
+        }
+
+        int workerNumInt = 0;//默认为0
+        try {
+            workerNumInt = Integer.valueOf(workerNumTmp);
+        } catch (NumberFormatException e) {
+        }
+        return workerNumInt;
+    }
+
+}
+
+//        shardingService = new ShardingService(regCenter);
+
+//        JobNodeStorage jobNodeStorage = new JobNodeStorage(regCenter, jobName);
+//        RegistryCenterConnectionStateListener regCenterConnectionStateListener = new
+//                RegistryCenterConnectionStateListener(regCenter, jobName);
+//
+//        electionListenerManager = new ElectionListenerManager(regCenter, jobName);
+
+//        jobEventConfig.createJobEventListener();
+
+//        JobCoreConfiguration coreConfig = JobCoreConfiguration.newBuilder(jobName, "0/5 * * * * ?", 3)
+//                .shardingItemParameters("0=Beijing,1=Shanghai,2=Guangzhou").build();
+
+//        JobCoreConfiguration coreConfig = JobCoreConfiguration.newBuilder(jobName).build();
+
+//        BizJobDefinition bizJobConfig = new BizJobDefinition(jobName, JavaSimpleJob.class
+//                .getCanonicalName());
+//
+//        JobConfiguration jobConfig = JobConfiguration.newBuilder(bizJobConfig).build();
+
+//        JobScheduleController JobScheduleController = new JobScheduleController(null, null, null);
+//        JobRegistry.getInstance().registerJob(jobName, JobScheduleController, regCenter);
+
 
 //        regCenter.addCacheData("/" + jobName);
 //
@@ -135,12 +196,6 @@ public class JeeTaskServer extends JeeTask {
 
 //        electionListenerManager.start();
 //        jobNodeStorage.addConnectionStateListener(regCenterConnectionStateListener);
-
-        taskService.persistOnline();
-        serverService.persistOnline(true);
-        instanceService.persistOnline();
-        leaderService.electLeader();
-
 
 //        shardingService.setReshardingFlag();
 
@@ -167,9 +222,3 @@ public class JeeTaskServer extends JeeTask {
 
 //        new JobScheduler(regCenter, JobConfiguration.newBuilder(bizJobConfig).build(), jobEventConfig, new
 //                JavaSimpleListener(), new JavaSimpleDistributeListener(1000L, 2000L)).init();
-
-
-    }
-
-
-}

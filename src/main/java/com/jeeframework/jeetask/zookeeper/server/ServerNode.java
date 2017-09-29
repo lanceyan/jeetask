@@ -18,6 +18,7 @@
 package com.jeeframework.jeetask.zookeeper.server;
 
 import com.dangdang.ddframe.job.util.env.IpUtils;
+import com.jeeframework.jeetask.util.net.IPUtils;
 import com.jeeframework.jeetask.zookeeper.storage.NodePath;
 
 import java.util.regex.Pattern;
@@ -62,17 +63,16 @@ public final class ServerNode {
         return Pattern.compile(nodePath.getFullPath(ServerNode.ROOT) + "/" + IpUtils.IP_REGEX).matcher(path)
                 .matches();
     }
-//
-//    /**
-//     * 判断给定路径是否为本地作业服务器路径.
-//     *
-//     * @param path 待判断的路径
-//     * @return 是否为本地作业服务器路径
-//     */
-//    public boolean isLocalServerPath(final String path) {
-//        return path.equals(nodePath.getFullPath(String.format(SERVERS, JobRegistry.getInstance().getJobInstance
-//                (jobName).getIp())));
-//    }
+
+    /**
+     * 判断给定路径是否为本地作业服务器路径.
+     *
+     * @param path 待判断的路径
+     * @return 是否为本地作业服务器路径
+     */
+    public boolean isLocalServerPath(final String path) {
+        return path.equals(nodePath.getFullPath(String.format(SERVERS, IPUtils.getUniqueServerId())));
+    }
 
     public static String getServerNode(final String ip) {
         return String.format(SERVERS, ip);

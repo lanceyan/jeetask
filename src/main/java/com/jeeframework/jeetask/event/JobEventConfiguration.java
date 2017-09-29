@@ -22,7 +22,7 @@ package com.jeeframework.jeetask.event;
  *
  * @author caohao
  */
-public interface JobEventConfiguration extends JobEventIdentity {
+public interface JobEventConfiguration {
 
     /**
      * 创建作业事件监听器.

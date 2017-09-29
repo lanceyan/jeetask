@@ -15,11 +15,10 @@
  * </p>
  */
 
-package com.jeeframework.jeetask.event.rdb;
+package com.jeeframework.jeetask.event;
 
-import com.jeeframework.jeetask.event.JobEventConfiguration;
-import com.jeeframework.jeetask.event.JobEventListener;
-import com.jeeframework.jeetask.event.JobEventListenerConfigurationException;
+import com.jeeframework.jeetask.event.api.JobEventApiListener;
+import com.jeeframework.jeetask.event.rdb.JobEventRdbListener;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -30,21 +29,29 @@ import java.sql.SQLException;
 /**
  * 作业数据库事件配置.
  *
- * @author caohao
+ * @author lance
  */
 @RequiredArgsConstructor
 @Getter
-public final class JobEventRdbConfiguration extends JobEventRdbIdentity implements JobEventConfiguration, Serializable {
+public final class JobEventProcessorConfiguration implements JobEventConfiguration, Serializable {
+
+    public static final String PROCESSOR_TYPE_DB = "db";
+    public static final String PROCESSOR_TYPE_API = "api";
 
     private static final long serialVersionUID = 3344410699286435226L;
 
+    private final String processorType;
     private final DataSource dataSource;
-    private final String jobEventStorageClass;
+    private final String jobEventProcessor;
 
     @Override
     public JobEventListener createJobEventListener() throws JobEventListenerConfigurationException {
         try {
-            return new JobEventRdbListener(dataSource, jobEventStorageClass);
+            if (PROCESSOR_TYPE_API.equals(processorType)) {
+                return new JobEventApiListener(jobEventProcessor);
+            } else {
+                return new JobEventRdbListener(dataSource, jobEventProcessor);
+            }
         } catch (final SQLException ex) {
             throw new JobEventListenerConfigurationException(ex);
         }

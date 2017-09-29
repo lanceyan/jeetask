@@ -4,7 +4,7 @@ apply plugin: 'idea'
 apply plugin: 'maven-publish'
 
 group = 'com.jeeframework'
-version = '0.0.5-SNAPSHOT'
+version = '0.0.1-SNAPSHOT'
 
 description = """jeetask 任务调度系统"""
 
@@ -72,7 +72,9 @@ dependencies {
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.14'
 
 
-    compile group: 'com.jeeframework', name: 'jeeutil', version: '0.0.4'
+    compile group: 'com.jeeframework', name: 'jeeutil', version: '0.0.8'
+
+    compile group: 'org.springframework', name: 'spring-beans', version: '4.2.5.RELEASE'
 
     compile group: 'org.projectlombok', name: 'lombok', version: '1.16.16'
     compile group: 'org.apache.curator', name: 'curator-framework', version: '2.10.0'

@@ -24,10 +24,10 @@ import java.text.ParseException;
  * @version 1.0 2017-08-25 17:19
  */
 @Slf4j
-public class JobEventCommonStorage extends JobEventStorage {
+public class JobEventCommonStorageProcessor extends JobEventStorage {
     private final static String TASK_TABLE_NAME = "t_task";
 
-    public JobEventCommonStorage(DataSource dataSource) {
+    public JobEventCommonStorageProcessor(DataSource dataSource) {
         super(dataSource);
     }
 
@@ -38,9 +38,9 @@ public class JobEventCommonStorage extends JobEventStorage {
 
     protected void createTaskTable(final Connection conn) throws SQLException {
         String dbSchema = "CREATE TABLE `" + tableName + "` ("
-                + "`id` bigint(20) NOT NULL, "
+                + "`id` bigint(20) NOT NULL AUTO_INCREMENT, "
                 + "`job_name` VARCHAR(100) NOT NULL, "
-                + "`state` INT NOT NULL, "
+                + "`state` VARCHAR(20) NOT NULL, "
                 + "`progress` INT NOT NULL, "
                 + "`ip` VARCHAR(20) NOT NULL, "
                 + "`param` VARCHAR(500) NOT NULL, "
@@ -176,6 +176,43 @@ public class JobEventCommonStorage extends JobEventStorage {
             preparedStatement.setTimestamp(2, new Timestamp(jobExecutionEvent.getCompleteTime().getTime()));
             preparedStatement.setString(3, truncateString(jobExecutionEvent.getFailureCause()));
             preparedStatement.setLong(4, jobExecutionEvent.getTaskId());
+            preparedStatement.executeUpdate();
+            result = true;
+        } catch (final SQLException ex) {
+            // TODO 记录失败直接输出日志,未来可考虑配置化
+            log.error(ex.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    protected boolean updateJobExecutionEventStopped(JobExecutionEvent jobExecutionEvent) {
+        boolean result = false;
+        String sql = "UPDATE `" + tableName + "` SET `state` = ?,`complete_time` = ?   WHERE id = ?";
+        try (
+                Connection conn = dataSource.getConnection();
+                PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+            preparedStatement.setString(1, jobExecutionEvent.getState().toString());
+            preparedStatement.setTimestamp(2, new Timestamp(jobExecutionEvent.getCompleteTime().getTime()));
+            preparedStatement.setLong(3, jobExecutionEvent.getTaskId());
+            preparedStatement.executeUpdate();
+            result = true;
+        } catch (final SQLException ex) {
+            // TODO 记录失败直接输出日志,未来可考虑配置化
+            log.error(ex.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    protected boolean updateJobExecutionEventRecovery(JobExecutionEvent jobExecutionEvent) {
+        boolean result = false;
+        String sql = "UPDATE `" + tableName + "` SET `state` = ?   WHERE id = ?";
+        try (
+                Connection conn = dataSource.getConnection();
+                PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+            preparedStatement.setString(1, jobExecutionEvent.getState().toString());
+            preparedStatement.setLong(2, jobExecutionEvent.getTaskId());
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {

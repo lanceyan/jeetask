@@ -21,9 +21,9 @@ public final class RegistryCenterConnectionStateListener implements ConnectionSt
 
     private final String jobName;
 
-    private   ServerService serverService;
+    private ServerService serverService;
 
-    private   InstanceService instanceService;
+    private InstanceService instanceService;
 
     private final ShardingService shardingService;
 
@@ -46,9 +46,9 @@ public final class RegistryCenterConnectionStateListener implements ConnectionSt
         if (ConnectionState.SUSPENDED == newState || ConnectionState.LOST == newState) {
             jobScheduleController.pauseJob();
         } else if (ConnectionState.RECONNECTED == newState) {
-            serverService.persistOnline(serverService.isEnableServer(JobRegistry.getInstance().getJobInstance
+            serverService.updateStatus(serverService.isEnableServer(JobRegistry.getInstance().getJobInstance
                     (jobName).getIp()));
-            instanceService.persistOnline();
+            instanceService.connect();
             executionService.clearRunningInfo(shardingService.getLocalShardingItems());
             jobScheduleController.resumeJob();
         }

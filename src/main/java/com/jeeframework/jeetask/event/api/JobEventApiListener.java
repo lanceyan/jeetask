@@ -15,52 +15,44 @@
  * </p>
  */
 
-package com.jeeframework.jeetask.event.rdb;
+package com.jeeframework.jeetask.event.api;
 
 import com.jeeframework.jeetask.event.JobEventListener;
 import com.jeeframework.jeetask.event.JobEventListenerConfigurationException;
 import com.jeeframework.jeetask.event.JobEventProcessor;
-import com.jeeframework.jeetask.event.rdb.impl.JobEventCommonStorageProcessor;
+import com.jeeframework.jeetask.event.api.impl.JobEvenApiProcessor;
 import com.jeeframework.jeetask.event.type.JobExecutionEvent;
 import com.jeeframework.util.classes.ClassUtils;
 import com.jeeframework.util.validate.Validate;
 import lombok.RequiredArgsConstructor;
 
-import javax.sql.DataSource;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.sql.SQLException;
-
 /**
- * 运行痕迹事件数据库监听器.
+ * 运行痕迹事件Api监听器.
  *
- * @author caohao
+ * @author lance
  */
 @RequiredArgsConstructor
-public final class JobEventRdbListener implements JobEventListener {
+public final class JobEventApiListener implements JobEventListener {
 
     private final JobEventProcessor processor;
 
-    public JobEventRdbListener(final DataSource dataSource, final String jobEventStorageClass) throws SQLException,
-            JobEventListenerConfigurationException {
+    public JobEventApiListener(final String jobEventStorageClass) throws JobEventListenerConfigurationException {
         if (!Validate.isEmpty(jobEventStorageClass)) {
             try {
                 Class jobEventStorageClazz = ClassUtils.forName(jobEventStorageClass);
-                Constructor constructor = ClassUtils.getConstructorIfAvailable(jobEventStorageClazz, new
-                        Class[]{DataSource.class});
-                processor = (JobEventProcessor) constructor.newInstance(dataSource);
+//                Constructor constructor = ClassUtils.getConstructorIfAvailable(jobEventStorageClazz, new
+//                        Class[]{DataSource.class});
+                processor = (JobEventProcessor) jobEventStorageClazz.newInstance();
             } catch (ClassNotFoundException e) {
                 throw new JobEventListenerConfigurationException(e);
             } catch (IllegalAccessException e) {
                 throw new JobEventListenerConfigurationException(e);
             } catch (InstantiationException e) {
                 throw new JobEventListenerConfigurationException(e);
-            } catch (InvocationTargetException e) {
-                throw new JobEventListenerConfigurationException(e);
             }
 
         } else {
-            processor = new JobEventCommonStorageProcessor(dataSource);
+            processor = new JobEvenApiProcessor();
         }
     }
 

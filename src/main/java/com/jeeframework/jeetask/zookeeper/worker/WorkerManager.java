@@ -20,6 +20,7 @@ import com.jeeframework.jeetask.zookeeper.task.TaskService;
 import com.jeeframework.util.validate.Validate;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.springframework.beans.factory.BeanFactory;
 
 import java.util.Date;
 import java.util.List;
@@ -40,21 +41,25 @@ public class WorkerManager implements Runnable {
     private final ExecutorService workerExecutorService;
     private final ServerService serverService;
     private final TaskService taskService;
+    private final BeanFactory context;
 
     private final CoordinatorRegistryCenter regCenter;
 
     public WorkerManager(final CoordinatorRegistryCenter regCenter, final JobEventBus
-            jobEventBus) {
+            jobEventBus, final BeanFactory context, final int workerNum, final ServerService serverService) {
         this.regCenter = regCenter;
         nodeStorage = new NodeStorage(regCenter);
         this.jobEventBus = jobEventBus;
         serverNode = new ServerNode();
         nodePath = new NodePath();
-        serverService = new ServerService(regCenter, jobEventBus);
+        this.serverService = serverService;
         taskService = new TaskService(regCenter, jobEventBus);
+        this.context = context;
 
-        ExecutorServiceObject executorServiceObject = new ExecutorServiceObject("worker-executor", Runtime.getRuntime()
-                .availableProcessors() * 2);
+        int currentWorkerNum = workerNum > 0 ? workerNum : Runtime.getRuntime().availableProcessors() * 2;
+        System.out.println("===============根据配置系统启动了：  " + currentWorkerNum + "个worker  ==================");
+
+        ExecutorServiceObject executorServiceObject = new ExecutorServiceObject("worker-executor", currentWorkerNum);
         workerExecutorService = executorServiceObject.createExecutorService();
     }
 
@@ -68,30 +73,38 @@ public class WorkerManager implements Runnable {
                     long taskId = Long.valueOf(taskIdTmp);
                     Task taskTmp = serverService.getRunningTaskById(taskId);
                     //执行分配任务，认领任务
-                    workerExecutorService.execute(new Worker(regCenter, jobEventBus, taskTmp));
+                    workerExecutorService.execute(new Worker(regCenter, jobEventBus, taskTmp, context, this
+                            .serverService));
                 }
             }
 
             while (true) {
                 String batchNo = DateFormatUtils.format(new Date(), "yyyyMMddHHmmss");
+                int successCount = 0;
+                int allCount = 0;
                 try {
                     List<String> waitingTaskIds = serverService.getWaitingTaskIds();
+                    allCount = (Validate.isEmpty(waitingTaskIds) ? 0 :
+                            waitingTaskIds.size());
+                    log.info("当前批次： " + batchNo + " 取出来任务数：" + allCount);
                     if (!Validate.isEmpty(waitingTaskIds)) {
                         for (String taskIdTmp : waitingTaskIds) {
                             long taskId = Long.valueOf(taskIdTmp);
                             Task taskTmp = serverService.getWaitingTaskById(taskId);
                             //执行分配任务，认领任务
                             serverService.claimTask(taskTmp, workerExecutorService);
+                            successCount++;
 
                         }
                     }
 
                 } catch (Throwable e) {
-
+                    log.error("当前批次： " + batchNo + " 执行出错 " + e, e);
                 } finally {
                     try {
                         Thread.sleep(5000);
-                        log.info("当前批次： " + batchNo + " 执行完成，休息5秒");
+                        log.info("当前批次： " + batchNo + " 执行完成，allCount = " + allCount + " ，successCount =  " +
+                                successCount + "  休息5秒");
                     } catch (InterruptedException e) {
                     }
                 }

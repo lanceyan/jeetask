@@ -28,11 +28,13 @@ public class JeeTaskClient extends JeeTask {
 
     public JeeTaskClient(DataSource dataSource) throws IOException {
         super(dataSource);
-        taskService = new TaskService(regCenter, jobEventBus);
     }
 
     public JeeTaskClient() throws IOException {
         super(null);
+    }
+
+    public void start() {
         taskService = new TaskService(regCenter, jobEventBus);
     }
 
@@ -43,6 +45,24 @@ public class JeeTaskClient extends JeeTask {
      */
     public void submitTask(Task task) {
         taskService.submitTask(task);
+    }
+
+    /**
+     * 停止任务，正在运行的任务不能停止
+     *
+     * @param taskId
+     */
+    public void stopTask(long taskId) {
+        taskService.stopTask(taskId);
+    }
+
+    /**
+     * 恢复任务，之前出错，停止的任务，恢复在zookeeper里的状态
+     *
+     * @param task
+     */
+    public void recoverTask(Task task) {
+        taskService.recoverTask(task);
     }
 
 

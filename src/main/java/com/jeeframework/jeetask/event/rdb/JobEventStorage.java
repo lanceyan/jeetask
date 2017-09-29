@@ -18,12 +18,12 @@
 package com.jeeframework.jeetask.event.rdb;
 
 import com.google.common.base.Strings;
-import com.jeeframework.jeetask.event.type.JobExecutionEvent;
-import com.jeeframework.jeetask.event.type.JobStatusTraceEvent;
+import com.jeeframework.jeetask.event.JobEventProcessor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.sql.DataSource;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.SQLException;
 
 
 /**
@@ -32,7 +32,7 @@ import java.sql.*;
  * @author caohao
  */
 @Slf4j
-public abstract class JobEventStorage {
+public abstract class JobEventStorage extends JobEventProcessor {
 
     //    private static final String tableName = "t_task";
 //
@@ -146,49 +146,6 @@ public abstract class JobEventStorage {
     protected abstract void createTaskIdAndStateIndex(final Connection conn, final String tableName, final String
             indexName) throws SQLException;
 
-    public boolean addJobExecutionEvent(final JobExecutionEvent jobExecutionEvent) {
-
-        JobStatusTraceEvent.State currentStat = jobExecutionEvent.getState();
-        switch (currentStat) {
-            case TASK_CREATED: {
-                return insertJobExecutionEvent(jobExecutionEvent);
-            }
-            case TASK_STAGING: {
-                return updateJobExecutionEventWhenStaging(jobExecutionEvent);
-            }
-            case TASK_RUNNING: {
-                return updateJobExecutionEventWhenStart(jobExecutionEvent);
-            }
-            case TASK_FINISHED: {
-                return updateJobExecutionEventWhenFinished(jobExecutionEvent);
-            }
-            case TASK_ERROR: {
-                return updateJobExecutionEventFailure(jobExecutionEvent);
-            }
-        }
-
-        return true;
-
-//        if (null == jobExecutionEvent.getEndTime()) {
-//            return updateJobExecutionEvent(jobExecutionEvent);
-//        } else {
-//            if (jobExecutionEvent.isSuccess()) {
-//                return updateJobExecutionEventWhenSuccess(jobExecutionEvent);
-//            } else {
-//                return updateJobExecutionEventFailure(jobExecutionEvent);
-//            }
-//        }
-    }
-
-    protected abstract boolean insertJobExecutionEvent(final JobExecutionEvent jobExecutionEvent);
-
-    protected abstract boolean updateJobExecutionEventWhenStaging(final JobExecutionEvent jobExecutionEvent);
-
-    protected abstract boolean updateJobExecutionEventWhenStart(final JobExecutionEvent jobExecutionEvent);
-
-    protected abstract boolean updateJobExecutionEventWhenFinished(final JobExecutionEvent jobExecutionEvent);
-
-    protected abstract boolean updateJobExecutionEventFailure(final JobExecutionEvent jobExecutionEvent);
 
     protected String truncateString(final String str) {
         return !Strings.isNullOrEmpty(str) && str.length() > 4000 ? str.substring(0, 4000) : str;

@@ -24,6 +24,7 @@ import com.jeeframework.jeetask.event.JobEventBus;
 import com.jeeframework.jeetask.zookeeper.server.ServerService;
 import com.jeeframework.jeetask.zookeeper.storage.NodeStorage;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.springframework.beans.factory.BeanFactory;
 
 import java.util.Date;
 import java.util.LinkedList;
@@ -42,17 +43,18 @@ public final class InstanceService {
 
     private final ServerService serverService;
 
-    public InstanceService(final CoordinatorRegistryCenter regCenter, final JobEventBus jobEventBus) {
+    public InstanceService(final CoordinatorRegistryCenter regCenter, final JobEventBus jobEventBus, final
+    BeanFactory context, final ServerService serverService) {
         nodeStorage = new NodeStorage(regCenter);
         instanceNode = new InstanceNode();
-        serverService = new ServerService(regCenter, jobEventBus);
+        this.serverService = serverService;
     }
 
     /**
      * 持久化作业运行实例上线相关信息.
      */
-    public void persistOnline() {
-        nodeStorage.fillEphemeralJobNode(instanceNode.getLocalInstanceNode(), DateFormatUtils.format(new Date(),
+    public void connect() {
+        nodeStorage.fillEphemeralNode(instanceNode.getLocalInstanceNode(), DateFormatUtils.format(new Date(),
                 "yyyyMMddHHmmss"));
     }
 
@@ -60,14 +62,14 @@ public final class InstanceService {
      * 删除作业运行状态.
      */
     public void removeInstance() {
-        nodeStorage.removeJobNodeIfExisted(instanceNode.getLocalInstanceNode());
+        nodeStorage.removeNodeIfExisted(instanceNode.getLocalInstanceNode());
     }
 
     /**
      * 清理作业触发标记.
      */
     public void clearTriggerFlag() {
-        nodeStorage.updateJobNode(instanceNode.getLocalInstanceNode(), "");
+        nodeStorage.updateNode(instanceNode.getLocalInstanceNode(), "");
     }
 
     /**
@@ -77,7 +79,7 @@ public final class InstanceService {
      */
     public List<JobInstance> getAvailableJobInstances() {
         List<JobInstance> result = new LinkedList<>();
-        for (String each : nodeStorage.getJobNodeChildrenKeys(InstanceNode.ROOT)) {
+        for (String each : nodeStorage.getNodeChildrenKeys(InstanceNode.ROOT)) {
             JobInstance jobInstance = new JobInstance(each);
             if (serverService.isEnableServer(jobInstance.getIp())) {
                 result.add(new JobInstance(each));
@@ -92,6 +94,6 @@ public final class InstanceService {
      * @return 当前作业运行实例的节点是否仍然存在
      */
     public boolean isLocalJobInstanceExisted() {
-        return nodeStorage.isJobNodeExisted(instanceNode.getLocalInstanceNode());
+        return nodeStorage.isNodeExisted(instanceNode.getLocalInstanceNode());
     }
 }

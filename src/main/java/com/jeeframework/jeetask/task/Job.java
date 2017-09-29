@@ -8,6 +8,8 @@
  */
 package com.jeeframework.jeetask.task;
 
+import com.jeeframework.jeetask.task.context.JobContext;
+
 /**
  * 作业接口类
  *
@@ -19,5 +21,5 @@ public interface Job {
     /**
      * 作业处理基类
      */
-    void doJob();
+    void doJob(JobContext jobContext);
 }

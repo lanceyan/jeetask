@@ -17,12 +17,8 @@
 
 package com.jeeframework.jeetask.zookeeper.instance;
 
-import com.dangdang.ddframe.job.lite.internal.schedule.JobRegistry;
 import com.jeeframework.jeetask.util.net.IPUtils;
 import com.jeeframework.jeetask.zookeeper.storage.NodePath;
-import org.apache.commons.lang3.time.DateFormatUtils;
-
-import java.util.Date;
 
 /**
  * 运行实例节点路径.
@@ -43,7 +39,7 @@ public final class InstanceNode {
     private final static String instanceId;
 
     static {
-        instanceId = IPUtils.getOutAndLocalIPV4() ;
+        instanceId = IPUtils.getUniqueServerId() ;
 //        + DELIMITER + DateFormatUtils
 //                .format(new Date(), "yyyyMMddHHmmss")
     }

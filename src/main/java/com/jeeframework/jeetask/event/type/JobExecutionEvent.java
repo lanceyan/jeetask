@@ -76,10 +76,14 @@ public final class JobExecutionEvent implements JobEvent {
     @Setter
     private JobExecutionEventThrowable failureCause;
 
+    @Getter
+    private final Task task;
+
     public JobExecutionEvent(long taskId, JobStatusTraceEvent.State state, String ip) {
         this.taskId = taskId;
         this.state = state;
         this.ip = ip;
+        task = null;
     }
 
     public JobExecutionEvent(Task task) {
@@ -89,6 +93,7 @@ public final class JobExecutionEvent implements JobEvent {
         this.message = "";
         this.state = JobStatusTraceEvent.State.TASK_CREATED;
         this.ip = "";
+        this.task = task;
     }
 
 
@@ -98,7 +103,7 @@ public final class JobExecutionEvent implements JobEvent {
      * @return 作业执行事件
      */
     public JobExecutionEvent executionSuccess() {
-        JobExecutionEvent result = new JobExecutionEvent(taskId, state.TASK_FINISHED, IPUtils.getOutAndLocalIPV4());
+        JobExecutionEvent result = new JobExecutionEvent(taskId, state.TASK_FINISHED, IPUtils.getUniqueServerId());
         result.setCompleteTime(new Date());
         return result;
     }
@@ -110,7 +115,7 @@ public final class JobExecutionEvent implements JobEvent {
      * @return 作业执行事件
      */
     public JobExecutionEvent executionFailure(final Throwable failureCause) {
-        JobExecutionEvent result = new JobExecutionEvent(taskId, state.TASK_ERROR, IPUtils.getOutAndLocalIPV4());
+        JobExecutionEvent result = new JobExecutionEvent(taskId, state.TASK_ERROR, IPUtils.getUniqueServerId());
 
         result.setFailureCause(new JobExecutionEventThrowable
                 (failureCause));

@@ -32,10 +32,10 @@ import org.apache.curator.framework.recipes.cache.TreeCacheEvent.Type;
 public final class TaskListenerManager extends AbstractListenerManager {
 
 
-    private   ServerService serverService;
+    private ServerService serverService;
 
-    public TaskListenerManager(final CoordinatorRegistryCenter regCenter, final String jobName) {
-        super(regCenter, jobName);
+    public TaskListenerManager(final CoordinatorRegistryCenter regCenter) {
+        super(regCenter);
 //        serverService = new ServerService(regCenter);
     }
 

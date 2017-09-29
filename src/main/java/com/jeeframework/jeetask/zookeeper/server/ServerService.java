@@ -19,7 +19,6 @@ package com.jeeframework.jeetask.zookeeper.server;
 
 import com.dangdang.ddframe.job.lite.internal.instance.InstanceNode;
 import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.jeeframework.jeetask.event.JobEventBus;
@@ -29,6 +28,7 @@ import com.jeeframework.jeetask.executor.ExecutorShutdownException;
 import com.jeeframework.jeetask.server.Server;
 import com.jeeframework.jeetask.task.Task;
 import com.jeeframework.jeetask.util.net.IPUtils;
+import com.jeeframework.jeetask.zookeeper.instance.InstanceService;
 import com.jeeframework.jeetask.zookeeper.storage.NodePath;
 import com.jeeframework.jeetask.zookeeper.storage.NodeStorage;
 import com.jeeframework.jeetask.zookeeper.storage.TransactionExecutionCallback;
@@ -42,6 +42,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.transaction.CuratorTransactionFinal;
 import org.apache.curator.framework.recipes.atomic.DistributedAtomicInteger;
 import org.apache.curator.retry.RetryNTimes;
+import org.springframework.beans.factory.BeanFactory;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -63,31 +64,31 @@ public final class ServerService {
     private final JobEventBus jobEventBus;
     private final ExecutorService workerManagerExecutorService;
     private final CoordinatorRegistryCenter regCenter;
+    private final BeanFactory context;
+    private final InstanceService instanceService;
+    private final int maxAllowedWorkerCount;
 
     public ServerService(final CoordinatorRegistryCenter regCenter, final JobEventBus
-            jobEventBus) {
+            jobEventBus, final BeanFactory context, final int maxAllowedWorkerCount) {
         this.regCenter = regCenter;
         nodeStorage = new NodeStorage(regCenter);
         this.jobEventBus = jobEventBus;
         serverNode = new ServerNode();
         nodePath = new NodePath();
         workerManagerExecutorService = Executors.newFixedThreadPool(1);
+        this.context = context;
+        this.maxAllowedWorkerCount = maxAllowedWorkerCount;
 
-
+        instanceService = new InstanceService(regCenter, jobEventBus, context, this);
     }
 
-
-    /**
-     * 持久化作业服务器上线信息.
-     *
-     * @param enabled 服务器是否启用
-     */
-    public void persistOnline(final boolean enabled) {
-
+    public void updateStatus(final boolean enabled) {
         JsonObject json = new JsonObject();
         json.addProperty("status", enabled ? ServerStatus.ENABLED.name() : ServerStatus
                 .DISABLED.name());
         int cpuCount = Runtime.getRuntime().availableProcessors();
+
+        json.addProperty("maxAllowedWorkerCount", maxAllowedWorkerCount);
 
         json.addProperty("cpu", cpuCount);
 //        long totalMemory = Runtime.getRuntime().totalMemory();
@@ -101,18 +102,31 @@ public final class ServerService {
 
 
         //填充服务器节点
-        nodeStorage.fillJobNode(serverNode.getServerNode(IPUtils.getOutAndLocalIPV4()), json.toString()
+        nodeStorage.fillNode(serverNode.getServerNode(IPUtils.getUniqueServerId()), json.toString()
         );
+    }
+
+    /**
+     * 持久化作业服务器上线信息.
+     */
+    public void register(String roles) {
+
+        updateStatus(true);
         //填充服务器下的任务节点
-        nodeStorage.fillJobNode(serverNode.getTaskNode(IPUtils.getOutAndLocalIPV4()), "");
+        nodeStorage.fillNode(serverNode.getTaskNode(IPUtils.getUniqueServerId()), "");
 
         //填充服务器下的等待任务节点
-        nodeStorage.fillJobNode(serverNode.getWaitingTaskNode(IPUtils.getOutAndLocalIPV4()), "");
+        nodeStorage.fillNode(serverNode.getWaitingTaskNode(IPUtils.getUniqueServerId()), "");
 
         //填充服务器下的运行中任务节点
-        nodeStorage.fillJobNode(serverNode.getRunningTaskNode(IPUtils.getOutAndLocalIPV4()), "");
+        nodeStorage.fillNode(serverNode.getRunningTaskNode(IPUtils.getUniqueServerId()), "");
 
-        startWorkerManager();
+        if (roles.contains("worker")) {
+            System.out.println("===============配置了worker角色，启动工作者线程==================");
+            startWorkerManager();
+        }
+
+        instanceService.connect();
     }
 
     /**
@@ -122,7 +136,9 @@ public final class ServerService {
         if (workerManagerExecutorService.isShutdown()) {
             throw new ExecutorShutdownException("创建workerManager线程池出错，excutorService关闭");
         }
-        WorkerManager workerManager = new WorkerManager(this.regCenter, this.jobEventBus);
+        WorkerManager workerManager = new WorkerManager(this.regCenter, this.jobEventBus, context, this
+                .maxAllowedWorkerCount,
+                this);
         workerManagerExecutorService.execute(workerManager);
     }
 
@@ -132,7 +148,7 @@ public final class ServerService {
      * @return 是否还有可用的作业服务器
      */
     public boolean hasAvailableServers() {
-        List<String> servers = nodeStorage.getJobNodeChildrenKeys(ServerNode.ROOT);
+        List<String> servers = nodeStorage.getNodeChildrenKeys(ServerNode.ROOT);
         for (String each : servers) {
             if (isAvailableServer(each)) {
                 return true;
@@ -152,7 +168,7 @@ public final class ServerService {
     }
 
     private boolean hasOnlineInstances(final String ip) {
-        for (String each : nodeStorage.getJobNodeChildrenKeys(InstanceNode.ROOT)) {
+        for (String each : nodeStorage.getNodeChildrenKeys(InstanceNode.ROOT)) {
             if (each.startsWith(ip)) {
                 return true;
             }
@@ -181,10 +197,11 @@ public final class ServerService {
      * 根据IP获取当前server的状态
      *
      * @param ip IP
-     * @return {"status":enabled ,  "cpu": 2, "load": 2,  "mem": {  "total" : "8g", "used": "2g" }}
+     * @return {"status":enabled , "maxAllowedWorkerCount":"",  "cpu": 2, "load": 2,  "mem": {  "total" : "8g", "used":
+     * "2g" }}
      */
     private JsonObject getServerStatusJSONByIp(String ip) {
-        return new JsonParser().parse(nodeStorage.getJobNodeData(serverNode.getServerNode(ip)))
+        return new JsonParser().parse(nodeStorage.getNodeData(serverNode.getServerNode(ip)))
                 .getAsJsonObject();
     }
 
@@ -206,7 +223,7 @@ public final class ServerService {
      */
     public void claimTask(Task task, ExecutorService workerExecutorService) {
         //保证在一个事务里完成
-        nodeStorage.executeInTransaction(new ClaimTaskTransactionExecutionCallback(task, workerExecutorService));
+        nodeStorage.executeInTransaction(new ClaimTaskTransactionExecutionCallback(task, workerExecutorService, this));
     }
 
     /**
@@ -215,22 +232,25 @@ public final class ServerService {
      * @return serverList
      */
     public List<Server> getAvailableServers() {
-        List<String> servers = nodeStorage.getJobNodeChildrenKeys(ServerNode.ROOT);
+        List<String> servers = nodeStorage.getNodeChildrenKeys(ServerNode.ROOT);
 
         List<Server> availableServerList = new ArrayList<Server>();
 
         for (String ip : servers) {
             JsonObject serverStatusJSON = getServerStatusJSONByIp(ip);
+            int maxAllowedWorkerCount = serverStatusJSON.get("maxAllowedWorkerCount").getAsInt();
+
             Server server = new Server();
             server.setOutAndLocalIp(ip);
             server.setTaskCount(0);
+            server.setMaxAllowedWorkerCount(maxAllowedWorkerCount);
 
 
 //{"status":enabled ,  "cpu": 2, "load": 2,  "mem": {  "total" : "8g", "used": "2g" }}
             if (verifyServerStatus(serverStatusJSON) && hasOnlineInstances(ip)) {
                 //如果服务可用，检查服务器状态和当前的任务数，计算出可以分配的分值
                 //       /servers/169.254.79.228_10.0.75.1/taskCounts
-                String taskCountTmp = nodeStorage.getJobNodeData(serverNode.getTaskCountNode(ip));
+                String taskCountTmp = nodeStorage.getNodeData(serverNode.getTaskCountNode(ip));
                 if (!Validate.isEmpty(taskCountTmp)) {
                     int taskCount = 0;
                     try {
@@ -262,9 +282,12 @@ public final class ServerService {
         for (Server server : availableServerList) {
             int cpuCount = server.getCpuCount();
             int taskCount = server.getTaskCount();
+            int maxAllowedWorkerCount = server.getMaxAllowedWorkerCount();
 
-            int maxTaskCount = cpuCount + 1;
-            if (taskCount < maxTaskCount) {
+            if (maxAllowedWorkerCount <= 0) {
+                maxAllowedWorkerCount = cpuCount + 1;
+            }
+            if (taskCount < maxAllowedWorkerCount) {
                 serverList.add(server);
             }
         }
@@ -296,8 +319,11 @@ public final class ServerService {
         final Server server;
         final Task task;
 
+        String outAndLocalIp = IPUtils.getUniqueServerId();
+
         @Override
         public void execute(final CuratorTransactionFinal curatorTransactionFinal) throws Exception {
+            long taskId = task.getId();
 //            serverService.assignTask(serverTmp, taskTmp);
 //            taskService.deleteTask(taskId);
 
@@ -305,18 +331,26 @@ public final class ServerService {
              *    这是任务状态为待分配，同时更新数据库任务状态为待分配
              *    分配到具体服务器里  delete /tasks/1             add   /servers/169.254.79.228_10.0.75.1/tasks/1
              */
-            long taskId = task.getId();
-            Gson gson = new Gson();
-            String taskJSON = gson.toJson(task);
 
-            String outAndLocalIp = IPUtils.getOutAndLocalIPV4();
 
             //服务器节点添加任务节点
             curatorTransactionFinal.create().forPath(nodePath.getFullPath(ServerNode.getWaitingTaskIdNode(outAndLocalIp,
-                    taskId)), taskJSON.getBytes()).and();
+                    taskId)), task.toZk().getBytes()).and();
             //原任务队列删除
             curatorTransactionFinal.delete().forPath(nodePath.getFullPath(TaskNode.getTaskIdNode(String.valueOf(taskId)
             ))).and();
+
+
+        }
+
+        @Override
+        public void afterCommit() throws Exception {
+
+            long taskId = task.getId();
+            String ip = IPUtils.getUniqueServerId();
+            JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
+                    .TASK_STAGING, ip);
+            jobEventBus.trigger(jobExecutionEvent);
 
             //服务器上任务计数+1
             CuratorFramework client = nodeStorage.getClient();
@@ -327,17 +361,7 @@ public final class ServerService {
             counter.increment();
 
             int taskCount = counter.get().postValue();
-            log.debug("taskCount =  " + taskCount + "  条任务。");
-        }
-
-        @Override
-        public void afterCommit() throws Exception {
-
-            long taskId = task.getId();
-            String ip = IPUtils.getOutAndLocalIPV4();
-            JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
-                    .TASK_STAGING, ip);
-            jobEventBus.trigger(jobExecutionEvent);
+            log.debug("taskId =  " + taskId + "任务分配成功， taskCount =  " + taskCount + "  条任务。");
         }
     }
 
@@ -346,27 +370,27 @@ public final class ServerService {
 
         final Task task;
         final ExecutorService workerExecutorService;
+        final ServerService serverService;
+
+
+//            Gson gson = new Gson();
+//            String taskJSON = gson.toJson(task);
+
+        String outAndLocalIp = IPUtils.getUniqueServerId();
 
         @Override
         public void execute(final CuratorTransactionFinal curatorTransactionFinal) throws Exception {
-
+            long taskId = task.getId();
             /**   delete  /servers/169.254.79.228_10.0.75.1/tasks/waiting/111    里删除一个任务
              *    add     /servers/169.254.79.228_10.0.75.1/tasks/running/111  里添加一个任务
              */
-
-            long taskId = task.getId();
-            Gson gson = new Gson();
-            String taskJSON = gson.toJson(task);
-
-            String outAndLocalIp = IPUtils.getOutAndLocalIPV4();
-
             //waiting任务队列删除
             curatorTransactionFinal.delete().forPath(nodePath.getFullPath(ServerNode.getWaitingTaskIdNode
                     (outAndLocalIp, taskId
                     ))).and();
             //running添加任务节点
             curatorTransactionFinal.create().forPath(nodePath.getFullPath(ServerNode.getRunningTaskIdNode(outAndLocalIp,
-                    taskId)), taskJSON.getBytes()).and();
+                    taskId)), task.toZk().getBytes()).and();
 
 
             log.debug("taskId =  " + taskId + "  放入了running队列，准备执行啦！");
@@ -375,7 +399,7 @@ public final class ServerService {
         @Override
         public void afterCommit() throws Exception {
 
-            workerExecutorService.execute(new Worker(regCenter, jobEventBus, task));
+            workerExecutorService.execute(new Worker(regCenter, jobEventBus, task, context, serverService));
         }
     }
 
@@ -386,8 +410,8 @@ public final class ServerService {
      */
     public List<String> getWaitingTaskIds() {
         List<String> result = new LinkedList<>();
-        String ip = IPUtils.getOutAndLocalIPV4();
-        for (String each : nodeStorage.getJobNodeChildrenKeys(ServerNode.getWaitingTaskNode(ip))) {
+        String ip = IPUtils.getUniqueServerId();
+        for (String each : nodeStorage.getNodeChildrenKeys(ServerNode.getWaitingTaskNode(ip))) {
             result.add(each);
         }
         return result;
@@ -399,10 +423,14 @@ public final class ServerService {
      * @return
      */
     public Task getWaitingTaskById(long taskId) {
-        String ip = IPUtils.getOutAndLocalIPV4();
-        String nodeData = nodeStorage.getJobNodeData(ServerNode.getWaitingTaskIdNode(ip, taskId));
-        Gson gson = new Gson();
-        Task task = gson.fromJson(nodeData, Task.class);
+        String ip = IPUtils.getUniqueServerId();
+        String nodeData = nodeStorage.getNodeData(ServerNode.getWaitingTaskIdNode(ip, taskId));
+        Task task = null;
+        try {
+            task = Task.fromZk(nodeData);
+        } catch (ClassNotFoundException e) {
+
+        }
 
         return task;
     }
@@ -414,8 +442,8 @@ public final class ServerService {
      */
     public List<String> getRunningTaskIds() {
         List<String> result = new LinkedList<>();
-        String ip = IPUtils.getOutAndLocalIPV4();
-        for (String each : nodeStorage.getJobNodeChildrenKeys(ServerNode.getRunningTaskNode(ip))) {
+        String ip = IPUtils.getUniqueServerId();
+        for (String each : nodeStorage.getNodeChildrenKeys(ServerNode.getRunningTaskNode(ip))) {
             result.add(each);
         }
         return result;
@@ -427,10 +455,14 @@ public final class ServerService {
      * @return
      */
     public Task getRunningTaskById(long taskId) {
-        String ip = IPUtils.getOutAndLocalIPV4();
-        String nodeData = nodeStorage.getJobNodeData(ServerNode.getRunningTaskIdNode(ip, taskId));
-        Gson gson = new Gson();
-        Task task = gson.fromJson(nodeData, Task.class);
+        String ip = IPUtils.getUniqueServerId();
+        String nodeData = nodeStorage.getNodeData(ServerNode.getRunningTaskIdNode(ip, taskId));
+        Task task = null;
+        try {
+            task = Task.fromZk(nodeData);
+        } catch (ClassNotFoundException e) {
+
+        }
 
         return task;
     }
