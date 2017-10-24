@@ -74,12 +74,4 @@ public final class InstanceNode {
         return instanceId;
     }
 
-    /**
-     * 获取作业服务器IP地址.
-     *
-     * @return 作业服务器IP地址
-     */
-    public String getIP(String instanceId) {
-        return instanceId.substring(0, instanceId.indexOf(DELIMITER));
-    }
 }

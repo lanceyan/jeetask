@@ -135,7 +135,7 @@ public class Worker implements Runnable {
             counter.decrement();
 
             int taskCount = counter.get().postValue();
-            log.debug("taskId =  " + taskId + "  执行完成了！  taskCount =  " + taskCount + "  条任务。");
+            log.debug("   taskId =  " + taskId + "  执行完成了！ 当前服务器还有 taskCount =  " + taskCount + "  条任务没有执行完。");
         }
     }
 
@@ -145,7 +145,6 @@ public class Worker implements Runnable {
 
         final Task task;
         final Throwable throwable;
-
 
 
         String outAndLocalIp = IPUtils.getUniqueServerId();

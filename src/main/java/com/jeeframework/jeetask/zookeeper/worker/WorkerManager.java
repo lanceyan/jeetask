@@ -86,7 +86,7 @@ public class WorkerManager implements Runnable {
                     List<String> waitingTaskIds = serverService.getWaitingTaskIds();
                     allCount = (Validate.isEmpty(waitingTaskIds) ? 0 :
                             waitingTaskIds.size());
-                    log.info("当前批次： " + batchNo + " 取出来任务数：" + allCount);
+                    log.info("当前批次： " + batchNo + " 取出来等待执行任务数WaitingTaskCount=  " + allCount);
                     if (!Validate.isEmpty(waitingTaskIds)) {
                         for (String taskIdTmp : waitingTaskIds) {
                             long taskId = Long.valueOf(taskIdTmp);
@@ -103,7 +103,14 @@ public class WorkerManager implements Runnable {
                 } finally {
                     try {
                         Thread.sleep(5000);
-                        log.info("当前批次： " + batchNo + " 执行完成，allCount = " + allCount + " ，successCount =  " +
+                        List<String> runningTaskIdsTmp = serverService.getRunningTaskIds();
+                        int runningTaskCount = 0;
+                        if (!Validate.isEmpty(runningTaskIdsTmp)) {
+                            runningTaskCount = runningTaskIdsTmp.size();
+                        }
+                        log.info("当前批次： " + batchNo + " 执行完成，任务数状态 runningTaskCount = " + runningTaskCount + " ， " +
+                                "WaitingTaskCount=   " + allCount + " " +
+                                "，successClaimTaskCount =  " +
                                 successCount + "  休息5秒");
                     } catch (InterruptedException e) {
                     }

@@ -8,6 +8,7 @@
  */
 package com.jeeframework.jeetask.event.rdb.impl;
 
+import com.jeeframework.jeetask.event.exception.JobEventException;
 import com.jeeframework.jeetask.event.rdb.JobEventStorage;
 import com.jeeframework.jeetask.event.type.JobExecutionEvent;
 import com.jeeframework.util.format.DateFormat;
@@ -104,9 +105,10 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             jobExecutionEvent.setTaskId(Long.valueOf(retId + ""));
             result = true;
         } catch (final SQLException ex) {
-            if (!isDuplicateRecord(ex)) {
-                // TODO 记录失败直接输出日志,未来可考虑配置化
+            if (isDuplicateRecord(ex)) {
                 log.error(ex.getMessage());
+            } else {
+                throw new JobEventException(ex);
             }
         }
         return result;
@@ -123,8 +125,7 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {
-            // TODO 记录失败直接输出日志,未来可考虑配置化
-            log.error(ex.getMessage());
+            throw new JobEventException(ex);
         }
         return result;
     }
@@ -141,8 +142,7 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {
-            // TODO 记录失败直接输出日志,未来可考虑配置化
-            log.error(ex.getMessage());
+            throw new JobEventException(ex);
         }
         return result;
     }
@@ -159,8 +159,7 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {
-            // TODO 记录失败直接输出日志,未来可考虑配置化
-            log.error(ex.getMessage());
+            throw new JobEventException(ex);
         }
         return result;
     }
@@ -179,8 +178,7 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {
-            // TODO 记录失败直接输出日志,未来可考虑配置化
-            log.error(ex.getMessage());
+            throw new JobEventException(ex);
         }
         return result;
     }
@@ -198,8 +196,7 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {
-            // TODO 记录失败直接输出日志,未来可考虑配置化
-            log.error(ex.getMessage());
+            throw new JobEventException(ex);
         }
         return result;
     }
@@ -216,8 +213,7 @@ public class JobEventCommonStorageProcessor extends JobEventStorage {
             preparedStatement.executeUpdate();
             result = true;
         } catch (final SQLException ex) {
-            // TODO 记录失败直接输出日志,未来可考虑配置化
-            log.error(ex.getMessage());
+            throw new JobEventException(ex);
         }
         return result;
     }

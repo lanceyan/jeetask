@@ -21,6 +21,7 @@ import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.jeeframework.jeetask.zookeeper.exception.ZkOperationException;
 import com.jeeframework.jeetask.zookeeper.exception.ZkOperationExceptionHandler;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -44,12 +45,12 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 基于Zookeeper的注册中心.
- * 
+ *
  * @author zhangliang
  */
 @Slf4j
 public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter {
-    
+
     @Getter(AccessLevel.PROTECTED)
     private ZookeeperConfiguration zkConfig;
 
@@ -61,13 +62,14 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
     public ZookeeperRegistryCenter(final ZookeeperConfiguration zkConfig) {
         this.zkConfig = zkConfig;
     }
-    
+
     @Override
     public void init() {
         log.debug("Elastic job: zookeeper registry center init, server lists is: {}.", zkConfig.getServerLists());
         CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
                 .connectString(zkConfig.getServerLists())
-                .retryPolicy(new ExponentialBackoffRetry(zkConfig.getBaseSleepTimeMilliseconds(), zkConfig.getMaxRetries(), zkConfig.getMaxSleepTimeMilliseconds()))
+                .retryPolicy(new ExponentialBackoffRetry(zkConfig.getBaseSleepTimeMilliseconds(), zkConfig
+                        .getMaxRetries(), zkConfig.getMaxSleepTimeMilliseconds()))
                 .namespace(zkConfig.getNamespace());
         if (0 != zkConfig.getSessionTimeoutMilliseconds()) {
             builder.sessionTimeoutMs(zkConfig.getSessionTimeoutMilliseconds());
@@ -78,12 +80,12 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         if (!Strings.isNullOrEmpty(zkConfig.getDigest())) {
             builder.authorization("digest", zkConfig.getDigest().getBytes(Charsets.UTF_8))
                     .aclProvider(new ACLProvider() {
-                    
+
                         @Override
                         public List<ACL> getDefaultAcl() {
                             return ZooDefs.Ids.CREATOR_ALL_ACL;
                         }
-                    
+
                         @Override
                         public List<ACL> getAclForPath(final String path) {
                             return ZooDefs.Ids.CREATOR_ALL_ACL;
@@ -93,7 +95,8 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         client = builder.build();
         client.start();
         try {
-            if (!client.blockUntilConnected(zkConfig.getMaxSleepTimeMilliseconds() * zkConfig.getMaxRetries(), TimeUnit.MILLISECONDS)) {
+            if (!client.blockUntilConnected(zkConfig.getMaxSleepTimeMilliseconds() * zkConfig.getMaxRetries(),
+                    TimeUnit.MILLISECONDS)) {
                 client.close();
                 throw new KeeperException.OperationTimeoutException();
             }
@@ -103,7 +106,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             ZkOperationExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void close() {
         for (Entry<String, TreeCache> each : caches.entrySet()) {
@@ -112,7 +115,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         waitForCacheClose();
         CloseableUtils.closeQuietly(client);
     }
-    
+
     /* TODO 等待500ms, cache先关闭再关闭client, 否则会抛异常
      * 因为异步处理, 可能会导致client先关闭而cache还未关闭结束.
      * 等待Curator新版本解决这个bug.
@@ -125,7 +128,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             Thread.currentThread().interrupt();
         }
     }
-    
+
     @Override
     public String get(final String key) {
         TreeCache cache = findTreeCache(key);
@@ -138,7 +141,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         return getDirectly(key);
     }
-    
+
     private TreeCache findTreeCache(final String key) {
         for (Entry<String, TreeCache> entry : caches.entrySet()) {
             if (key.startsWith(entry.getKey())) {
@@ -147,45 +150,45 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         return null;
     }
-    
+
     @Override
     public String getDirectly(final String key) {
         try {
             return new String(client.getData().forPath(key), Charsets.UTF_8);
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
             return null;
         }
     }
-    
+
     @Override
     public List<String> getChildrenKeys(final String key) {
         try {
             List<String> result = client.getChildren().forPath(key);
             Collections.sort(result, new Comparator<String>() {
-                
+
                 @Override
                 public int compare(final String o1, final String o2) {
                     return o2.compareTo(o1);
                 }
             });
             return result;
-         //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
             return Collections.emptyList();
         }
     }
-    
+
     @Override
     public int getNumChildren(final String key) {
         try {
             Stat stat = client.getZookeeperClient().getZooKeeper().exists(getNameSpace() + key, false);
             if (null != stat) {
-                return stat.getNumChildren();   
+                return stat.getNumChildren();
             }
             //CHECKSTYLE:OFF
         } catch (final Exception ex) {
@@ -194,131 +197,136 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         return 0;
     }
-    
+
     private String getNameSpace() {
         String result = this.getZkConfig().getNamespace();
         return Strings.isNullOrEmpty(result) ? "" : "/" + result;
     }
-    
+
     @Override
     public boolean isExisted(final String key) {
         try {
             return null != client.checkExists().forPath(key);
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
             return false;
         }
     }
-    
+
     @Override
     public void persist(final String key, final String value) {
         try {
             if (!isExisted(key)) {
-                client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(key, value.getBytes(Charsets.UTF_8));
+                client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(key, value.getBytes
+                        (Charsets.UTF_8));
             } else {
                 update(key, value);
             }
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void update(final String key, final String value) {
         try {
-            client.inTransaction().check().forPath(key).and().setData().forPath(key, value.getBytes(Charsets.UTF_8)).and().commit();
-        //CHECKSTYLE:OFF
+            client.inTransaction().check().forPath(key).and().setData().forPath(key, value.getBytes(Charsets.UTF_8))
+                    .and().commit();
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void persistEphemeral(final String key, final String value) {
         try {
             if (isExisted(key)) {
                 client.delete().deletingChildrenIfNeeded().forPath(key);
             }
-            client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(key, value.getBytes(Charsets.UTF_8));
-        //CHECKSTYLE:OFF
+            client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(key, value.getBytes
+                    (Charsets.UTF_8));
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
-            ZkOperationExceptionHandler.handleException(ex);
+            //CHECKSTYLE:ON
+            throw new ZkOperationException(ex);
         }
     }
-    
+
     @Override
     public String persistSequential(final String key, final String value) {
         try {
-            return client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL).forPath(key, value.getBytes(Charsets.UTF_8));
-        //CHECKSTYLE:OFF
+            return client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL).forPath(key,
+                    value.getBytes(Charsets.UTF_8));
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleException(ex);
         }
         return null;
     }
-    
+
     @Override
     public void persistEphemeralSequential(final String key) {
         try {
             client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL).forPath(key);
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void remove(final String key) {
         try {
             client.delete().deletingChildrenIfNeeded().forPath(key);
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public long getRegistryCenterTime(final String key) {
         long result = 0L;
         try {
-            String path = client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL).forPath(key);
+            String path = client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL).forPath
+                    (key);
             result = client.checkExists().forPath(path).getCtime();
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleExceptionNoOrExistNode(ex);
         }
         Preconditions.checkState(0L != result, "Cannot get registry center time.");
         return result;
     }
-    
+
     @Override
     public Object getRawClient() {
         return client;
     }
-    
+
     @Override
     public void addCacheData(final String cachePath) {
         TreeCache cache = new TreeCache(client, cachePath);
         try {
             cache.start();
-        //CHECKSTYLE:OFF
+            //CHECKSTYLE:OFF
         } catch (final Exception ex) {
-        //CHECKSTYLE:ON
+            //CHECKSTYLE:ON
             ZkOperationExceptionHandler.handleException(ex);
         }
         caches.put(cachePath + "/", cache);
     }
-    
+
     @Override
     public void evictCacheData(final String cachePath) {
         TreeCache cache = caches.remove(cachePath + "/");
@@ -326,7 +334,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             cache.close();
         }
     }
-    
+
     @Override
     public Object getRawCache(final String cachePath) {
         return caches.get(cachePath + "/");

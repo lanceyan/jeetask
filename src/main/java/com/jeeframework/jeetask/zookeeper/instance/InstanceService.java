@@ -65,12 +65,6 @@ public final class InstanceService {
         nodeStorage.removeNodeIfExisted(instanceNode.getLocalInstanceNode());
     }
 
-    /**
-     * 清理作业触发标记.
-     */
-    public void clearTriggerFlag() {
-        nodeStorage.updateNode(instanceNode.getLocalInstanceNode(), "");
-    }
 
     /**
      * 获取可分片的作业运行实例.

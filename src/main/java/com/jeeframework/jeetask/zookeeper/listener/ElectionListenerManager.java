@@ -24,7 +24,6 @@ import com.jeeframework.jeetask.zookeeper.election.LeaderNode;
 import com.jeeframework.jeetask.zookeeper.election.LeaderService;
 import com.jeeframework.jeetask.zookeeper.server.ServerNode;
 import com.jeeframework.jeetask.zookeeper.server.ServerService;
-import com.jeeframework.jeetask.zookeeper.server.ServerStatus;
 import com.jeeframework.jeetask.zookeeper.storage.NodePath;
 import org.apache.curator.framework.recipes.cache.TreeCacheEvent.Type;
 
@@ -53,27 +52,29 @@ public final class ElectionListenerManager extends AbstractListenerManager {
         this.leaderService = leaderService;
         this.serverService = serverService;
         this.nodePath = new NodePath();
+        regCenter.addCacheData(nodePath.getFullPath(LeaderNode.ROOT));
     }
 
     @Override
     public void start() {
-//        addDataListener(nodePath.getFullPath(LeaderNode.ROOT), new LeaderElectionJobListener());
-//        addDataListener(nodePath.getFullPath(LeaderNode.ROOT), new LeaderAbdicationJobListener());
+        addDataListener(nodePath.getFullPath(LeaderNode.ROOT), new LeaderElectionJobListener());
+        addDataListener(nodePath.getFullPath(LeaderNode.ROOT), new LeaderAbdicationJobListener());
     }
 
     class LeaderElectionJobListener extends AbstractJobListener {
 
         @Override
         protected void dataChanged(final String path, final Type eventType, final String data) {
-            if ((isActiveElection(path, data) || isPassiveElection
+            //isActiveElection(path, data) ||
+            if ((isPassiveElection
                     (path, eventType))) {
                 leaderService.electLeader();
             }
         }
 
-        private boolean isActiveElection(final String path, final String data) {
-            return !leaderService.hasLeader() && isLocalServerEnabled(path, data);
-        }
+//        private boolean isActiveElection(final String path, final String data) {
+//            return !leaderService.hasLeader() && isLocalServerEnabled(path, data);
+//        }
 
         private boolean isPassiveElection(final String path, final Type eventType) {
             return isLeaderCrashed(path, eventType) && serverService.isAvailableServer(IPUtils.getUniqueServerId());
@@ -83,22 +84,23 @@ public final class ElectionListenerManager extends AbstractListenerManager {
             return leaderNode.isLeaderInstancePath(path) && Type.NODE_REMOVED == eventType;
         }
 
-        private boolean isLocalServerEnabled(final String path, final String data) {
-            return serverNode.isLocalServerPath(path) && !ServerStatus.DISABLED.name().equals(data);
-        }
+//        private boolean isLocalServerEnabled(final String path, final String data) {
+//            return serverNode.isLocalServerPath(path) && !ServerStatus.DISABLED.name().equals(data);
+//        }
     }
 
     class LeaderAbdicationJobListener extends AbstractJobListener {
 
         @Override
         protected void dataChanged(final String path, final Type eventType, final String data) {
-            if (leaderService.isLeader() && isLocalServerDisabled(path, data)) {
+            ;
+            if (leaderService.isLeader() && !serverService.isEnableServer(IPUtils.getUniqueServerId())) {
                 leaderService.removeLeader();
             }
         }
 
-        private boolean isLocalServerDisabled(final String path, final String data) {
-            return serverNode.isLocalServerPath(path) && ServerStatus.DISABLED.name().equals(data);
-        }
+//        private boolean isLocalServerDisabled(final String path, final String data) {
+//            return serverNode.isLocalServerPath(path) && ServerStatus.DISABLED.name().equals(data);
+//        }
     }
 }

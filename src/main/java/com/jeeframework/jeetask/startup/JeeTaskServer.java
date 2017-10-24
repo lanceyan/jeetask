@@ -12,8 +12,10 @@ package com.jeeframework.jeetask.startup;
 import com.jeeframework.jeetask.zookeeper.config.ConfigurationService;
 import com.jeeframework.jeetask.zookeeper.election.LeaderService;
 import com.jeeframework.jeetask.zookeeper.instance.InstanceService;
+import com.jeeframework.jeetask.zookeeper.listener.RegistryCenterConnectionStateListener;
 import com.jeeframework.jeetask.zookeeper.server.ServerService;
 import com.jeeframework.jeetask.zookeeper.sharding.ShardingService;
+import com.jeeframework.jeetask.zookeeper.storage.NodeStorage;
 import com.jeeframework.jeetask.zookeeper.task.TaskService;
 import com.jeeframework.util.validate.Validate;
 import lombok.Setter;
@@ -123,10 +125,14 @@ public class JeeTaskServer extends JeeTask {
          */
 
         serverService.register(rolesTmp);
+        NodeStorage nodeStorage = new NodeStorage(regCenter);
+        RegistryCenterConnectionStateListener regCenterConnectionStateListener = new
+                RegistryCenterConnectionStateListener(serverService);
+        nodeStorage.addConnectionStateListener(regCenterConnectionStateListener);
 
         if (rolesTmp.contains("leader")) {
             System.out.println("===============配置了leader角色，启动选举监听线程==================");
-            leaderService = new LeaderService(regCenter, jobEventBus, context, serverService);
+            leaderService = new LeaderService(regCenter, jobEventBus, context, serverService, rolesTmp);
             leaderService.electLeader();
         }
 

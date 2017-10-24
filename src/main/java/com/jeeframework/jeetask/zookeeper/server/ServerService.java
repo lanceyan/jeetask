@@ -82,6 +82,10 @@ public final class ServerService {
         instanceService = new InstanceService(regCenter, jobEventBus, context, this);
     }
 
+    public InstanceService getInstanceService() {
+        return instanceService;
+    }
+
     public void updateStatus(final boolean enabled) {
         JsonObject json = new JsonObject();
         json.addProperty("status", enabled ? ServerStatus.ENABLED.name() : ServerStatus
@@ -114,6 +118,7 @@ public final class ServerService {
         updateStatus(true);
         //填充服务器下的任务节点
         nodeStorage.fillNode(serverNode.getTaskNode(IPUtils.getUniqueServerId()), "");
+
 
         //填充服务器下的等待任务节点
         nodeStorage.fillNode(serverNode.getWaitingTaskNode(IPUtils.getUniqueServerId()), "");
@@ -184,6 +189,9 @@ public final class ServerService {
      */
     public boolean isEnableServer(final String ip) {
         JsonObject serverStatusJSON = getServerStatusJSONByIp(ip);
+        if (null == serverStatusJSON) {
+            return false;
+        }
 
         return verifyServerStatus(serverStatusJSON);
     }
@@ -201,7 +209,11 @@ public final class ServerService {
      * "2g" }}
      */
     private JsonObject getServerStatusJSONByIp(String ip) {
-        return new JsonParser().parse(nodeStorage.getNodeData(serverNode.getServerNode(ip)))
+        String nodeData = nodeStorage.getNodeData(serverNode.getServerNode(ip));
+        if (null == nodeData) {
+            return null;
+        }
+        return new JsonParser().parse(nodeData)
                 .getAsJsonObject();
     }
 
@@ -229,14 +241,23 @@ public final class ServerService {
     /**
      * 返回可用的服务器列表
      *
+     * @param returnSelf 是否返回自己
      * @return serverList
      */
-    public List<Server> getAvailableServers() {
+    public List<Server> getAvailableServers(boolean returnSelf) {
         List<String> servers = nodeStorage.getNodeChildrenKeys(ServerNode.ROOT);
 
         List<Server> availableServerList = new ArrayList<Server>();
 
+        String uniqueId = IPUtils.getUniqueServerId();
+
         for (String ip : servers) {
+
+            if (!returnSelf && uniqueId.equals(ip)) {
+                continue;// 如果设定不返回自己，当前服务器ip和自己一样就不返回
+            }
+
+
             JsonObject serverStatusJSON = getServerStatusJSONByIp(ip);
             int maxAllowedWorkerCount = serverStatusJSON.get("maxAllowedWorkerCount").getAsInt();
 
@@ -313,13 +334,17 @@ public final class ServerService {
         return serverList;
     }
 
-    @RequiredArgsConstructor
     class AssignTaskTransactionExecutionCallback implements TransactionExecutionCallback {
 
         final Server server;
         final Task task;
+        final String outAndLocalIp;
 
-        String outAndLocalIp = IPUtils.getUniqueServerId();
+        public AssignTaskTransactionExecutionCallback(Server server, Task task) {
+            this.server = server;
+            this.task = task;
+            this.outAndLocalIp = server.getOutAndLocalIp();
+        }
 
         @Override
         public void execute(final CuratorTransactionFinal curatorTransactionFinal) throws Exception {
@@ -329,9 +354,8 @@ public final class ServerService {
 
             /**    /servers/169.254.79.228_10.0.75.1/taskCounts    原子锁计数 + 1
              *    这是任务状态为待分配，同时更新数据库任务状态为待分配
-             *    分配到具体服务器里  delete /tasks/1             add   /servers/169.254.79.228_10.0.75.1/tasks/1
+             *    分配到具体服务器里  delete /tasks/1      add   /servers/169.254.79.228_10.0.75.1/tasks/1
              */
-
 
             //服务器节点添加任务节点
             curatorTransactionFinal.create().forPath(nodePath.getFullPath(ServerNode.getWaitingTaskIdNode(outAndLocalIp,
@@ -347,9 +371,8 @@ public final class ServerService {
         public void afterCommit() throws Exception {
 
             long taskId = task.getId();
-            String ip = IPUtils.getUniqueServerId();
             JobExecutionEvent jobExecutionEvent = new JobExecutionEvent(taskId, JobStatusTraceEvent.State
-                    .TASK_STAGING, ip);
+                    .TASK_STAGING, outAndLocalIp);
             jobEventBus.trigger(jobExecutionEvent);
 
             //服务器上任务计数+1

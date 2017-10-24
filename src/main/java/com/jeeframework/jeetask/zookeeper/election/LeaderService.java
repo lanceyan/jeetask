@@ -56,14 +56,19 @@ public final class LeaderService {
 
     private final ElectionListenerManager electionListenerManager;
 
+    private final String roles;
+
 
     public LeaderService(final CoordinatorRegistryCenter regCenter, final JobEventBus jobEventBus, final BeanFactory
-            context, final ServerService serverService) {
+            context, final ServerService serverService, final String roles) {
         nodeStorage = new NodeStorage(regCenter);
         this.serverService = serverService;
         taskService = new TaskService(regCenter, jobEventBus);
         assignmentWorker = new AssignmentWorker();
         electionListenerManager = new ElectionListenerManager(regCenter, this, serverService);
+        new Thread(assignmentWorker).start();
+        electionListenerManager.start();//启动监听选举节点监听器
+        this.roles = roles;
     }
 
     /**
@@ -72,7 +77,7 @@ public final class LeaderService {
     public void electLeader() {
         log.debug("Elect a new leader now.");
         nodeStorage.executeInLeader(LeaderNode.LATCH, new LeaderElectionExecutionCallback());
-        electionListenerManager.start();//启动监听选举节点监听器
+
         log.debug("Leader election completed. Leader is  " + nodeStorage.getNodeData(LeaderNode.INSTANCE));
     }
 
@@ -143,9 +148,12 @@ public final class LeaderService {
             //通过没有leader，设定zookeeper领导节点选举成功
             //LeaderLatch.await();
             if (!hasLeader()) {
-                nodeStorage.fillEphemeralNode(LeaderNode.INSTANCE, makeLeaderInstance());
+                try {
+                    nodeStorage.fillEphemeralNode(LeaderNode.INSTANCE, makeLeaderInstance());
 
-                new Thread(assignmentWorker).start();
+                } catch (Exception e) {
+                    log.debug("竞争成为leader节点失败，错误为：" + e);
+                }
             }
         }
     }
@@ -161,6 +169,9 @@ public final class LeaderService {
      * @return 作业服务器IP地址
      */
     public String getIp(String leaderInstance) {
+        if (Validate.isEmpty(leaderInstance)) {
+            return "";
+        }
         return leaderInstance.substring(0, leaderInstance.indexOf(DELIMITER));
     }
 
@@ -177,6 +188,7 @@ public final class LeaderService {
 
         @Override
         public void run() {
+            allowStop = false;
             while (!hasLeader() && serverService.hasAvailableServers()) {
                 log.info("Leader is electing, waiting for {} ms", 100);
                 BlockUtils.waitingShortTime();
@@ -186,46 +198,69 @@ public final class LeaderService {
 
         private void assignTasks() {
             //如果是主节点，主节点执行任务分配，要在循环里判断是否是主节点，防止当前节点断线，其他机器又被选举为主节点，任务被分配多次
-            while (!allowStop && isLeader()) {
+            while (true) {
                 String batchNo = DateFormatUtils.format(new Date(), "yyyyMMddHHmmss");
-                List<String> taskIdList = taskService.getTaskIds();
-                log.debug("当前批次： " + batchNo + "  任务分配开始，待分配有 " + taskIdList.size() + "  条任务。");
-                if (!Validate.isEmpty(taskIdList)) {
+                try {
+                    if (!allowStop && isLeader()) {
+                        List<String> taskIdList = taskService.getTaskIds();
+                        log.debug("当前批次： " + batchNo + "  任务分配开始，待分配有 " + taskIdList.size() + "  条任务。");
 
-                    List<Server> availableServers = serverService.getAvailableServers();
+                        int assignCount = 0;
+                        if (!Validate.isEmpty(taskIdList)) {
 
-                    if (!Validate.isEmpty(availableServers)) {
-                        for (String taskId : taskIdList) {
-                            if (!isLeader()) {
-                                log.debug("当前批次： " + batchNo + "  当前服务器不是leader节点停止分配任务 ");
-                                break;
-                            }
-                            Server serverTmp = null;
-                            try {
-                                //有可能服务器挂掉，要判断为空，还有可能服务器为空，出现了failover的情况，需要注意分配不成功导致任务丢失
-                                serverTmp = availableServers.remove(0);
-                            } catch (IndexOutOfBoundsException e) {
-                                break;//跳出分配
-                            }
+                            boolean isWorkers = roles.contains("worker");
 
-                            if (null != serverTmp) {
-                                Task taskTmp = taskService.getTaskById(taskId);
+                            List<Server> availableServers = serverService.getAvailableServers(isWorkers);
 
-                                //执行分配任务
-                                serverService.assignTask(serverTmp, taskTmp);
+                            if (!Validate.isEmpty(availableServers)) {
+                                for (String taskId : taskIdList) {
+//                                    if (!isLeader()) {
+//                                        log.debug("当前批次： " + batchNo + "  当前服务器不是leader节点停止分配任务 ");
+//                                        break;
+//                                    }
+                                    Server serverTmp = null;
+                                    try {
+                                        //有可能服务器挂掉，要判断为空，还有可能服务器为空，出现了failover的情况，需要注意分配不成功导致任务丢失
+                                        serverTmp = availableServers.remove(0);
+                                    } catch (IndexOutOfBoundsException e) {
+                                        break;//跳出分配
+                                    }
+
+                                    if (null != serverTmp) {
+                                        Task taskTmp = taskService.getTaskById(taskId);
+
+                                        //执行分配任务
+                                        serverService.assignTask(serverTmp, taskTmp);
+                                        assignCount++;
+                                    }
+                                }
                             }
                         }
+                        log.debug("当前批次： " + batchNo + "  任务分配完成，分配了 " + assignCount + "  条任务。");
+
+                    } else {
+
+                        boolean isLeader = isLeader();
+                        log.debug("当前节点停止分配任务  allowStop =  " + allowStop + " isLeader() = " + isLeader + "  leader =" +
+                                " " + nodeStorage.getNodeData(LeaderNode.INSTANCE) + "。");
+                        if (!hasLeader()) {
+                            log.debug("当前节点停止分配任务  allowStop =  " + allowStop + " hasLeader() = " + hasLeader() + "， " +
+                                    "发起主动选举。");
+                            electLeader();
+                        }
+
+
                     }
+                } catch (Exception e) {
+                    log.debug("当前批次： " + batchNo + "  任务分配出错，错误= " + e);
                 }
-                log.debug("当前批次： " + batchNo + "  任务分配完成，分配了 " + taskIdList.size() + "  条任务。");
+
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
                 }
             }
-            if (allowStop) {
-                log.debug("当前节点停止分配任务。");
-            }
+
         }
     }
 }

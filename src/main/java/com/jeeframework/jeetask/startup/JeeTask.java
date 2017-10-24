@@ -98,6 +98,21 @@ public class JeeTask implements BeanFactoryAware, InitializingBean {
     private void init() {
 
         regCenter = setUpRegistryCenter();
+
+//        NodeStorage nodeStorage = new NodeStorage(regCenter);
+//
+//        CuratorFramework client = nodeStorage.getClient();
+//        NodePath nodePath = new NodePath();
+//        DistributedAtomicInteger counter = new DistributedAtomicInteger(client, nodePath.getFullPath(ServerNode
+//                .getTaskCountNode
+//                        (IPUtils.getUniqueServerId())), new
+//                RetryNTimes(100, 1000));
+//        try {
+//            counter.increment();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+
         //String dbType = properties.getProperty("db.type");
         String jobEventProcessorClassTmp = properties.getProperty("task.jobEventProcessorClass");
         //properties里没有就判断通过spring方式注入有没有

@@ -36,6 +36,15 @@ public class IPUtils {
     }
 
     public static String getUniqueServerId() {
+        String serverId = null;
+        try {
+            serverId = System.getProperty("serverId");
+        } catch (Exception e) {
+        }
+        if (!Validate.isEmpty(serverId)) {
+            return serverId.trim();
+        }
+
         List<String> uniqueIdList = new ArrayList<>();
         if (!Validate.isEmpty(outNetIPv4)) {
             uniqueIdList.add(outNetIPv4);
